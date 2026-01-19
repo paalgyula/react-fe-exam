@@ -6,7 +6,7 @@ import { Button } from '../../components/Button';
 import { Input } from '../../components/Input';
 import { Label } from '../../components/Label';
 import { format } from 'date-fns';
-import { Calendar, Clock, User, X } from 'lucide-react';
+import { Calendar, Clock, User, X, CheckCircle } from 'lucide-react';
 
 export const Appointments = () => {
   const [appointments, setAppointments] = useState([]);
@@ -20,6 +20,8 @@ export const Appointments = () => {
     reason: '',
     symptoms: '',
   });
+  const [errors, setErrors] = useState({});
+  const [showSuccess, setShowSuccess] = useState(false);
 
   useEffect(() => {
     fetchAppointments();
@@ -37,6 +39,9 @@ export const Appointments = () => {
     }
   };
 
+  /**
+   * Fetches the doctors from the database
+   */
   const fetchDoctors = async () => {
     try {
       const { users } = await userService.getAll({ role: 'doctor' });
@@ -46,8 +51,133 @@ export const Appointments = () => {
     }
   };
 
+  /**
+   * Validates the doctor selection
+   * @param {string} doctor - The doctor to validate
+   * @returns {string} The error message if the doctor is not selected, otherwise an empty string
+   */
+  const validateDoctor = (doctor) => {
+    if (!doctor || doctor === '') {
+      return 'Doctor selection is required';
+    }
+    return '';
+  };
+
+  /**
+   * Validates the date selection
+   * @param {string} date - The date to validate
+   * @returns {string} The error message if the date is not in the future, otherwise an empty string
+   */
+  const validateDate = (date) => {
+    if (!date) {
+      return '';
+    }
+    const selectedDate = new Date(date);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    selectedDate.setHours(0, 0, 0, 0);
+    if (selectedDate <= today) {
+      return 'Date must be in the future';
+    }
+    return '';
+  };
+
+  /**
+   * Validates the time selection
+   * @param {string} time - The time to validate
+   * @returns {string} The error message if the time is not during business hours, otherwise an empty string
+   */
+  const validateTime = (time) => {
+    if (!time) {
+      return '';
+    }
+    const [hours, minutes] = time.split(':').map(Number);
+    const hour = hours + minutes / 60;
+    if (hour < 9 || hour > 17) {
+      return 'Time must be during business hours (9 AM - 5 PM)';
+    }
+    return '';
+  };
+
+  /**
+   * Validates the reason for the appointment
+   * @param {string} reason - The reason to validate
+   * @returns {string} The error message if the reason is not at least 10 characters, otherwise an empty string
+   */
+  const validateReason = (reason) => {
+    if (!reason || reason.trim() === '') {
+      return 'Reason field must be at least 10 characters';
+    }
+    if (reason.trim().length < 10) {
+      return 'Reason field must be at least 10 characters';
+    }
+    return '';
+  };
+
+  /**
+   * Validates a field
+   * @param {string} name - The name of the field to validate
+   * @param {string} value - The value of the field to validate
+   * @returns {string} The error message if the field is not valid, otherwise an empty string
+   */
+  const validateField = (name, value) => {
+    let error = '';
+    switch (name) {
+      case 'doctor':
+        error = validateDoctor(value);
+        break;
+      case 'appointmentDate':
+        error = validateDate(value);
+        break;
+      case 'appointmentTime':
+        error = validateTime(value);
+        break;
+      case 'reason':
+        error = validateReason(value);
+        break;
+      default:
+        break;
+    }
+    setErrors((prev) => ({ ...prev, [name]: error }));
+    return error === '';
+  };
+
+  /**
+   * Validates the form
+   * @returns {boolean} True if the form is valid, false otherwise
+   */
+  const validateForm = () => {
+    const doctorValid = validateField('doctor', formData.doctor);
+    const dateValid = validateField('appointmentDate', formData.appointmentDate);
+    const timeValid = validateField('appointmentTime', formData.appointmentTime);
+    const reasonValid = validateField('reason', formData.reason);
+    return doctorValid && dateValid && timeValid && reasonValid;
+  };
+
+  /**
+   * Checks if the form is valid
+   * @returns {boolean} True if the form is valid, false otherwise
+   */
+  const isFormValid = () => {
+    return (
+      formData.doctor &&
+      formData.appointmentDate &&
+      formData.appointmentTime &&
+      formData.reason &&
+      !errors.doctor &&
+      !errors.appointmentDate &&
+      !errors.appointmentTime &&
+      !errors.reason
+    );
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
+    // Validate the form
+    if (!validateForm()) {
+      return;
+    }
+
     try {
       await appointmentService.create(formData);
       setShowForm(false);
@@ -58,10 +188,40 @@ export const Appointments = () => {
         reason: '',
         symptoms: '',
       });
+
+      // Reset the errors and show the success message
+      setErrors({});
+      setShowSuccess(true);
+      setTimeout(() => setShowSuccess(false), 5000);
       fetchAppointments();
     } catch (error) {
       alert(error.response?.data?.message || 'Failed to create appointment');
     }
+  };
+
+  /**
+   * Handles the change of a field
+   * @param {string} name - The name of the field to change
+   * @param {string} value - The value of the field to change
+   */
+  const handleChange = (name, value) => {
+    setFormData({ ...formData, [name]: value });
+    validateField(name, value);
+  };
+
+  /**
+   * Handles the closing of the form
+   */
+  const handleFormClose = () => {
+    setShowForm(false);
+    setErrors({});
+    setFormData({
+      doctor: '',
+      appointmentDate: '',
+      appointmentTime: '',
+      reason: '',
+      symptoms: '',
+    });
   };
 
   const handleCancel = async (id) => {
@@ -106,6 +266,13 @@ export const Appointments = () => {
         </Button>
       </div>
 
+      {showSuccess && (
+        <div className="fixed top-4 right-4 bg-green-500 text-white px-4 py-3 rounded-md shadow-lg flex items-center space-x-2 z-50">
+          <CheckCircle className="h-5 w-5" />
+          <span>Appointment booked successfully!</span>
+        </div>
+      )}
+
       {showForm && (
         <Card>
           <CardHeader>
@@ -118,10 +285,12 @@ export const Appointments = () => {
                   <Label htmlFor="doctor">Doctor</Label>
                   <select
                     id="doctor"
-                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                    className={`flex h-10 w-full rounded-md border ${
+                      errors.doctor ? 'border-red-500' : 'border-input'
+                    } bg-background px-3 py-2 text-sm`}
                     value={formData.doctor}
-                    onChange={(e) => setFormData({ ...formData, doctor: e.target.value })}
-                    required
+                    onChange={(e) => handleChange('doctor', e.target.value)}
+                    onBlur={(e) => validateField('doctor', e.target.value)}
                   >
                     <option value="">Select a doctor</option>
                     {doctors.map((doctor) => (
@@ -130,6 +299,9 @@ export const Appointments = () => {
                       </option>
                     ))}
                   </select>
+                  {errors.doctor && (
+                    <p className="text-sm text-red-500">{errors.doctor}</p>
+                  )}
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="appointmentDate">Date</Label>
@@ -137,10 +309,14 @@ export const Appointments = () => {
                     id="appointmentDate"
                     type="date"
                     value={formData.appointmentDate}
-                    onChange={(e) => setFormData({ ...formData, appointmentDate: e.target.value })}
-                    required
+                    onChange={(e) => handleChange('appointmentDate', e.target.value)}
+                    onBlur={(e) => validateField('appointmentDate', e.target.value)}
                     min={new Date().toISOString().split('T')[0]}
+                    className={errors.appointmentDate ? 'border-red-500 focus-visible:ring-red-500' : ''}
                   />
+                  {errors.appointmentDate && (
+                    <p className="text-sm text-red-500">{errors.appointmentDate}</p>
+                  )}
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="appointmentTime">Time</Label>
@@ -148,18 +324,27 @@ export const Appointments = () => {
                     id="appointmentTime"
                     type="time"
                     value={formData.appointmentTime}
-                    onChange={(e) => setFormData({ ...formData, appointmentTime: e.target.value })}
-                    required
+                    onChange={(e) => handleChange('appointmentTime', e.target.value)}
+                    onBlur={(e) => validateField('appointmentTime', e.target.value)}
+                    className={errors.appointmentTime ? 'border-red-500 focus-visible:ring-red-500' : ''}
                   />
+                  {errors.appointmentTime && (
+                    <p className="text-sm text-red-500">{errors.appointmentTime}</p>
+                  )}
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="reason">Reason</Label>
                   <Input
                     id="reason"
                     value={formData.reason}
-                    onChange={(e) => setFormData({ ...formData, reason: e.target.value })}
+                    onChange={(e) => handleChange('reason', e.target.value)}
+                    onBlur={(e) => validateField('reason', e.target.value)}
                     placeholder="Brief reason for visit"
+                    className={errors.reason ? 'border-red-500 focus-visible:ring-red-500' : ''}
                   />
+                  {errors.reason && (
+                    <p className="text-sm text-red-500">{errors.reason}</p>
+                  )}
                 </div>
               </div>
               <div className="space-y-2">
@@ -173,8 +358,10 @@ export const Appointments = () => {
                 />
               </div>
               <div className="flex space-x-2">
-                <Button type="submit">Book Appointment</Button>
-                <Button type="button" variant="outline" onClick={() => setShowForm(false)}>
+                <Button type="submit" disabled={!isFormValid()}>
+                  Book Appointment
+                </Button>
+                <Button type="button" variant="outline" onClick={handleFormClose}>
                   Cancel
                 </Button>
               </div>

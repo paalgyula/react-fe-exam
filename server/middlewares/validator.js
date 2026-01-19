@@ -48,8 +48,9 @@ const loginValidation = [
 
 const appointmentValidation = [
   body('doctor')
-    .notEmpty().withMessage('Doctor is required')
-    .isMongoId().withMessage('Invalid doctor ID'),
+    .notEmpty().withMessage('Doctor is required'),
+    // FIXME: i had disabled this because it was causing issues with the in-memory store - @paalgyula
+    // .isMongoId().withMessage('Invalid doctor ID'),
   body('appointmentDate')
     .notEmpty().withMessage('Appointment date is required')
     .isISO8601().withMessage('Invalid date format'),

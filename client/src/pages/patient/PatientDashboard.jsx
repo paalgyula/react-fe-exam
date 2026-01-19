@@ -29,7 +29,15 @@ export const PatientDashboard = () => {
         ]);
         setStats(statsResponse.stats);
         const appointments = appointmentsResponse.appointments || [];
-        setRecentAppointments(appointments.slice(0, 3));
+        
+        // Filter appointments by current patient
+        const patientAppointments = appointments.filter(appointment => {
+          const patientId = appointment.patient?._id || appointment.patient;
+          const currentUserId = user?._id || user?.id;
+          return patientId?.toString() === currentUserId?.toString();
+        });
+
+        setRecentAppointments(patientAppointments.slice(0, 3));
         const analyses = analysesResponse.analyses || [];
         setRecentAnalyses(analyses.slice(0, 3));
         setTrends(trendsResponse.trends || []);
